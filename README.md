@@ -137,7 +137,3 @@ No BYU CMR files (STL, DXF or PDF) are redistributed here. Because the default g
 - [three.js](https://github.com/mrdoob/three.js) r128 and its OrbitControls, MIT License
 - Fonts: Space Grotesk, Inter and JetBrains Mono via Google Fonts, SIL Open Font License
 
-## License
-
-Simulator code: choose a license for your repository. MIT is a common choice for the code itself.
-Whatever you choose, the attribution and non-commercial note for the original Oriceps design above still apply.

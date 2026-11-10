@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Oriceps Fold Simulator</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one-screen tool — 3D fold view (left, large) + control/readout column (right); stacks on phones */
+:root{
+  --bg:#f3f4f1; --panel:#ffffff; --ink:#1d232b; --muted:#5d6672; --line:#d9ddd6;
+  --mountain:#c4472f; --valley:#2a64b0; --accent:#1f7a6a;
+  --sheet:#f7efe0; --sheet2:#efe2c8; --jaw:#e7d2a8;
+  --font-display:"Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:"JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --view-bg:#e9ebe6;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#15191e; --panel:#1d2228; --ink:#e6e9ec; --muted:#9aa3ad; --line:#2f363e;
+  --mountain:#ef7a61; --valley:#6ea3ec; --accent:#4cc3aa;
+  --sheet:#d9cfbd; --sheet2:#c9b994; --jaw:#c7ad7c; --view-bg:#20262d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#15191e; --panel:#1d2228; --ink:#e6e9ec; --muted:#9aa3ad; --line:#2f363e;
+  --mountain:#ef7a61; --valley:#6ea3ec; --accent:#4cc3aa;
+  --sheet:#d9cfbd; --sheet2:#c9b994; --jaw:#c7ad7c; --view-bg:#20262d; color-scheme:dark}
+html,body{height:100%}
+body{display:flex;flex-direction:column;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;line-height:1.45;margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px;box-sizing:border-box}
+*{box-sizing:border-box}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px;margin-bottom:10px;flex:none}
+h1{font-family:var(--font-display);font-weight:600;font-size:1.3rem;margin:0;letter-spacing:-.01em;text-wrap:balance}
+header p{margin:0;color:var(--muted);max-width:none;font-size:13px}
+.formula{font-family:var(--font-mono);font-size:12px;margin-left:6px;white-space:nowrap}
+.app{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:minmax(0,1fr) minmax(170px,32%);
+  grid-template-areas:"view side" "below side";gap:12px}
+.view{grid-area:view;position:relative;background:var(--view-bg);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-height:0}
+#gl{width:100%;height:100%;display:block;touch-action:none}
+.hud{position:absolute;left:12px;top:12px;display:flex;flex-wrap:wrap;gap:8px;pointer-events:none}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--muted)}
+.chip b{color:var(--ink);font-family:var(--font-mono);font-weight:500}
+.chip.alert{border-color:var(--mountain);color:var(--mountain)}
+.legend{position:absolute;right:12px;bottom:10px;display:flex;gap:12px;font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 10px}
+.legend i{display:inline-block;width:18px;height:0;border-top:3px solid;vertical-align:middle;margin-right:5px}
+.side{grid-area:side;display:flex;flex-direction:column;gap:8px;min-width:0;min-height:0;overflow:auto}
+section.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+h2{font-family:var(--font-display);font-size:.8rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 6px}
+.seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px}
+.seg label{flex:1 1 auto;text-align:center;border:1px solid var(--line);border-radius:7px;padding:4px 6px;cursor:pointer;font-size:12.5px;color:var(--muted)}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg input:checked+span{color:var(--ink);font-weight:600}
+.seg label:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.big{display:flex;align-items:baseline;gap:8px;margin:0 0 2px}
+.big output{font-family:var(--font-mono);font-size:1.5rem;font-weight:500;font-variant-numeric:tabular-nums}
+.big span{color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:6px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.check{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:12.5px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:6px}
+.stats.four{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:0}
+.stats div{border:1px solid var(--line);border-radius:7px;padding:5px 7px;display:flex;flex-direction:column;gap:1px;min-width:0}
+.stats span{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stats small{font-size:10px}
+.stats b{font-family:var(--font-mono);font-weight:500;font-size:15px;font-variant-numeric:tabular-nums}
+.stats i{font-style:normal}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:3px 0;border-bottom:1px solid var(--line)}
+td:last-child{text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:0}
+.tag{display:inline-block;font-size:10.5px;line-height:1.3;border-radius:4px;padding:0 4px;margin-left:4px;border:1px solid}
+.tag.m{color:var(--mountain);border-color:var(--mountain)}
+.tag.v{color:var(--valley);border-color:var(--valley)}
+.geo{display:grid;grid-template-columns:minmax(0,1fr) 58px minmax(0,1fr) 58px;gap:4px 8px;align-items:center;font-size:12.5px}
+.geo label{color:var(--muted)}
+.geo input[type=number]{width:58px;font:inherit;font-family:var(--font-mono);font-size:12.5px;padding:3px 5px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--ink)}
+.geo .full{grid-column:1/-1}
+canvas.chart{width:100%;flex:1;min-height:0;display:block}
+.below{grid-area:below;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:12px;min-height:0}
+.below .card{display:flex;flex-direction:column;min-height:0}
+.below .note{margin:4px 0 0;font-size:12px}
+.note{color:var(--muted);font-size:12.5px;max-width:70ch}
+.note p{margin:0 0 6px}
+#cp{width:100%;flex:1;min-height:0;display:block}
+/* phones and short windows: stack and let the page scroll */
+@media (max-width:900px), (max-height:560px){
+  body{display:block;overflow:auto}
+  .app{display:flex;flex-direction:column}
+  .view{height:60vh;min-height:320px;flex:none}
+  .below{grid-template-columns:minmax(0,1fr)}
+  canvas.chart{height:190px;flex:none}
+  #cp{aspect-ratio:720/260;height:auto;flex:none}
+  .side{overflow:visible}
+  .formula{white-space:normal;margin-left:0}
+}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+
+<header>
+  <h1>Oriceps Fold Simulator</h1>
+  <p>A rigid-origami model of the BYU CMR Oriceps paper pattern. Change a fold angle and see how far the jaws close. <span class="formula">Model: tan(ρ<sub>c</sub>/2) = tan θ<sub>d</sub> · sin|ρ<sub>b</sub>| · zero-thickness panels, so a 3D print closes slightly less.</span></p>
+</header>
+
+<div class="app">
+  <div class="view">
+    <canvas id="gl" aria-label="Folded Oriceps 3D view. Drag to rotate, scroll to zoom"></canvas>
+    <div class="hud">
+      <span class="chip">Tip gap <b id="hudGap">–</b></span>
+      <span class="chip">Jaw angle <b id="hudJaw">–</b></span>
+      <span class="chip" id="hudContact" hidden>Jaw tips touch</span>
+    </div>
+    <div class="legend"><span><i style="border-color:var(--mountain)"></i>Mountain (b)</span><span><i style="border-color:var(--valley);border-top-style:dashed"></i>Valley (a, c, d)</span></div>
+  </div>
+
+  <div class="side">
+    <section class="card" aria-labelledby="hDrive">
+      <h2 id="hDrive">Input fold angle</h2>
+      <div class="seg" role="radiogroup" aria-label="Choose the input">
+        <label><input type="radio" name="drv" id="drvB" value="b" checked><span>Center b (mountain)</span></label>
+        <label><input type="radio" name="drv" id="drvC" value="c"><span>Side c (valley)</span></label>
+        <label><input type="radio" name="drv" id="drvG" value="g"><span>Tip gap</span></label>
+      </div>
+      <div class="big"><output id="drvOut">0</output><span id="drvUnit">°</span></div>
+      <input type="range" id="drv" min="0" max="1000" value="380" aria-label="Input value">
+      <div class="row" style="margin-top:4px;justify-content:space-between">
+        <button id="play" type="button">▶ Fold / unfold</button>
+        <label class="check"><input type="checkbox" id="stopAtContact" checked> Stop when tips touch</label>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="hOut">
+      <h2 id="hOut">Results</h2>
+      <div class="stats">
+        <div><span>Tip gap</span><b id="oGap">–</b></div>
+        <div title="flat sheet = 180°"><span>Jaw angle</span><b id="oJaw">–</b></div>
+        <div><span>Handle width</span><b id="oPinch">–</b></div>
+      </div>
+      <div class="stats four">
+        <div><span>b <i class="tag m">M</i></span><b id="oB">–</b></div>
+        <div><span>c <i class="tag v">V</i></span><b id="oC">–</b></div>
+        <div><span>d <i class="tag v">V</i></span><b id="oD">–</b></div>
+        <div><span>a <i class="tag v">V</i></span><b id="oA">–</b></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="hGeo">
+      <h2 id="hGeo">Pattern dimensions (mm)</h2>
+      <div class="geo">
+        <label for="gA" class="full" style="color:var(--ink);font-weight:600">Angle between d and b, θ<sub>d</sub> <span id="gAOut" style="font-family:var(--font-mono);font-weight:500;float:right"></span></label>
+        <input type="range" id="gA" class="full" min="20" max="88" step="0.5" aria-describedby="gAHint">
+        <span class="note full" id="gAHint" style="margin:-2px 0 4px;font-size:11.5px">Changes the flap-end width. Grey chart curves = other angles.</span>
+        <label for="gW">Center W 2·x<sub>c</sub></label><input type="number" id="gW" step="0.5" min="5">
+        <label for="gH">Center H 2·y<sub>c</sub></label><input type="number" id="gH" step="0.5" min="2">
+        <label for="gT">Flap W 2·x<sub>t</sub></label><input type="number" id="gT" step="0.5" min="0">
+        <label for="gY">Flap H 2·y<sub>t</sub></label><input type="number" id="gY" step="0.5" min="3">
+        <label for="gL">Length 2·L</label><input type="number" id="gL" step="1" min="10">
+        <button id="reset" type="button" style="grid-column:3/5;padding:4px 8px">Reset to original</button>
+        <span class="note full" id="geoMsg" style="margin:0;color:var(--mountain)"></span>
+      </div>
+    </section>
+  </div>
+
+<div class="below">
+  <section class="card" aria-labelledby="hChart">
+    <h2 id="hChart">Folding curve</h2>
+    <canvas class="chart" id="chart" aria-label="Tip gap and fold angle c versus center fold angle b"></canvas>
+    <p class="note" id="chartNote"></p>
+  </section>
+  <section class="card" aria-labelledby="hCP">
+    <h2 id="hCP">Crease pattern (top view)</h2>
+    <canvas id="cp" aria-label="Oriceps crease pattern"></canvas>
+    <p class="note">Each corner of the center rectangle is a degree-4 vertex, so one input drives the whole pattern.</p>
+  </section>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(() => {
+const PT = 0.352778;                    // PDF point -> mm (handout: Letter page, 1 pt = 1/72 in)
+const ORIG = {W: 2*62.31*PT, H: 2*27.69*PT, T: 2*34.62*PT, Y: 2*83.08*PT, L: 2*270*PT};
+let G = {...ORIG};
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const deg = r => r*180/Math.PI, rad = d => d*Math.PI/180;
+
+// ---------------- vector helpers
+const V = (x,y,z)=>[x,y,z];
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]], sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s], dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const norm=a=>Math.hypot(a[0],a[1],a[2]), unit=a=>mul(a,1/norm(a));
+function rotM(u,a){u=unit(u);const [x,y,z]=u,c=Math.cos(a),s=Math.sin(a),C=1-c;
+  return [[c+x*x*C,x*y*C-z*s,x*z*C+y*s],[y*x*C+z*s,c+y*y*C,y*z*C-x*s],[z*x*C-y*s,z*y*C+x*s,c+z*z*C]];}
+const mv=(M,v)=>[M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2],M[1][0]*v[0]+M[1][1]*v[1]+M[1][2]*v[2],M[2][0]*v[0]+M[2][1]*v[1]+M[2][2]*v[2]];
+// rigid transform as {R,t}: x -> R x + t
+const hingeX = (u,a,p)=>{const R=rotM(u,a);return {R,t:sub(p,mv(R,p))};};
+const ap=(X,v)=>add(mv(X.R,v),X.t);
+const I={R:[[1,0,0],[0,1,0],[0,0,1]],t:[0,0,0]};
+function frame3(P0,P1,P2){const e1=unit(sub(P1,P0)),e3=unit(cross(e1,sub(P2,P0))),e2=cross(e3,e1);return [e1,e2,e3];}
+function fromPoints(F,W){ // rigid transform mapping flat points F[0..2] to world W[0..2]
+  const a=frame3(...F), b=frame3(...W);
+  const R=[0,1,2].map(i=>[0,1,2].map(j=>b[0][i]*a[0][j]+b[1][i]*a[1][j]+b[2][i]*a[2][j]));
+  return {R,t:sub(W[0],mv(R,F[0]))};
+}
+
+// ---------------- pattern
+function pattern(){
+  const xc=G.W/2, yc=G.H/2, xt=G.T/2, yt=G.Y/2, L=G.L/2;
+  const P = {
+    C:  [[-xc,-yc],[xc,-yc],[xc,yc],[-xc,yc]],
+    T:  [[-xc,yc],[xc,yc],[xt,yt],[-xt,yt]],
+    Bm: [[-xc,-yc],[-xt,-yt],[xt,-yt],[xc,-yc]],
+    LJ: [[-L,-yc],[-xc,-yc],[-xc,yc],[-L,yc]],
+    RJ: [[xc,-yc],[L,-yc],[L,yc],[xc,yc]],
+    LU: [[-L,yc],[-xc,yc],[-xt,yt]],
+    LL: [[-L,-yc],[-xt,-yt],[-xc,-yc]],
+    RU: [[xc,yc],[L,yc],[xt,yt]],
+    RL: [[xc,-yc],[xt,-yt],[L,-yc]],
+  };
+  const creases = [ // [type, p, q]
+    ['b',[-xc,yc],[xc,yc]],['b',[-xc,-yc],[xc,-yc]],
+    ['c',[-xc,-yc],[-xc,yc]],['c',[xc,-yc],[xc,yc]],
+    ['d',[-xc,yc],[-xt,yt]],['d',[xc,yc],[xt,yt]],['d',[-xc,-yc],[-xt,-yt]],['d',[xc,-yc],[xt,-yt]],
+    ['a',[-L,yc],[-xc,yc]],['a',[-L,-yc],[-xc,-yc]],['a',[xc,yc],[L,yc]],['a',[xc,-yc],[L,-yc]],
+  ];
+  const outline = [[-L,-yc],[-xt,-yt],[xt,-yt],[L,-yc],[L,yc],[xt,yt],[-xt,yt],[-L,yc]];
+  const thetaD = Math.atan2(yt-yc, xc-xt);   // angle of crease d to the horizontal
+  return {xc,yc,xt,yt,L,P,creases,outline,thetaD};
+}
+let PAT = pattern();
+
+// ---------------- kinematics  (rb <= 0 : mountain at b)
+function solve(rb){
+  const {xc,yc,xt,yt,L,thetaD} = PAT;
+  const p=Math.cos(thetaD), q=Math.sin(thetaD);
+  let rc = 2*Math.atan2(q*Math.sin(rb), -p); rc = ((rc+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;
+  const X = {C:I};
+  X.T  = hingeX([1,0,0], rb, [0,yc,0]);
+  X.Bm = hingeX([-1,0,0], rb, [0,-yc,0]);
+  X.LJ = hingeX([0,1,0], rc, [-xc,0,0]);
+  X.RJ = hingeX([0,-1,0], rc, [xc,0,0]);
+  const P3=(x,y)=>[x,y,0];
+  X.LU = fromPoints([P3(-xc,yc),P3(-xt,yt),P3(-L,yc)], [ap(X.T,P3(-xc,yc)),ap(X.T,P3(-xt,yt)),ap(X.LJ,P3(-L,yc))]);
+  X.LL = fromPoints([P3(-xc,-yc),P3(-xt,-yt),P3(-L,-yc)], [ap(X.Bm,P3(-xc,-yc)),ap(X.Bm,P3(-xt,-yt)),ap(X.LJ,P3(-L,-yc))]);
+  X.RU = fromPoints([P3(xc,yc),P3(xt,yt),P3(L,yc)], [ap(X.T,P3(xc,yc)),ap(X.T,P3(xt,yt)),ap(X.RJ,P3(L,yc))]);
+  X.RL = fromPoints([P3(xc,-yc),P3(xt,-yt),P3(L,-yc)], [ap(X.Bm,P3(xc,-yc)),ap(X.Bm,P3(xt,-yt)),ap(X.RJ,P3(L,-yc))]);
+  const n = k => mv(X[k].R,[0,0,1]);
+  const ang = (a,b)=>Math.acos(Math.max(-1,Math.min(1,dot(n(a),n(b)))));
+  const tipL = ap(X.LJ,[-L,0,0]), tipR = ap(X.RJ,[L,0,0]);
+  const dirL = mv(X.LJ.R,[-1,0,0]), dirR = mv(X.RJ.R,[1,0,0]);
+  const gapSigned = tipR[0]-tipL[0];        // < 0 : tips have passed each other
+  const jaw = Math.acos(Math.max(-1,Math.min(1,dot(dirL,dirR))));
+  const pinch = norm(sub(ap(X.T,[0,yt,0]), ap(X.Bm,[0,-yt,0])));
+  return {X, rb, rc, rd: ang('T','LU'), ra: ang('LJ','LU'), gap: gapSigned, jaw, pinch};
+}
+
+// table over |rb| for chart / inversion
+let TAB=[], CONTACT=null;
+function buildTable(){
+  TAB=[]; CONTACT=null;
+  for(let i=0;i<=720;i++){ const b=i*0.25; const s=solve(-rad(b)); TAB.push({b, c:deg(s.rc), g:s.gap, jaw:deg(s.jaw)});
+    if(CONTACT===null && i>0 && TAB[i-1].g>0 && s.gap<=0){ const A=TAB[i-1], B=TAB[i]; CONTACT = A.b + (B.b-A.b)*A.g/(A.g-B.g); } }
+}
+
+// ---------------- UI mapping
+const drvEl=$('drv');
+function driver(){ return document.querySelector('input[name=drv]:checked').value; }
+function bMax(){ return ($('stopAtContact').checked && CONTACT!==null) ? CONTACT : 180; }
+function cMaxB(){ // first-branch end for driver c : where c peaks (|b| = 90) or contact
+  return Math.min(90, bMax()); }
+function sliderToB(v){ // v in [0,1]
+  const d=driver();
+  if(d==='b') return v*bMax();
+  if(d==='c'){ const cTop = TAB[Math.round(cMaxB()*4)].c; const target=v*cTop;
+    for(let i=1;i<TAB.length;i++){ if(TAB[i].c>=target){const A=TAB[i-1],B=TAB[i];return A.b+(B.b-A.b)*(target-A.c)/((B.c-A.c)||1);} } return cMaxB(); }
+  // gap: from flat gap down to gap at bMax
+  const g0=TAB[0].g, gEnd=TAB[Math.round(Math.min(bMax(),90)*4)].g; const target=g0+(gEnd-g0)*v;
+  for(let i=1;i<TAB.length;i++){ if(TAB[i].g<=target){const A=TAB[i-1],B=TAB[i];return A.b+(B.b-A.b)*(A.g-target)/((A.g-B.g)||1);} }
+  return Math.min(bMax(),90);
+}
+function bToSlider(b){
+  const d=driver(); const s=solve(-rad(b));
+  if(d==='b') return b/bMax();
+  if(d==='c'){ const cTop=TAB[Math.round(cMaxB()*4)].c; return Math.min(1,deg(s.rc)/cTop); }
+  const g0=TAB[0].g, gEnd=TAB[Math.round(Math.min(bMax(),90)*4)].g; return Math.min(1,Math.max(0,(s.gap-g0)/((gEnd-g0)||1)));
+}
+let curB = 22;
+
+// ---------------- three.js scene
+const canvas=$('gl');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(35,1,1,5000);
+camera.position.set(-120,170,190);
+const controls=new THREE.OrbitControls(camera,canvas); controls.enableDamping=true; controls.target.set(0,25,0);
+scene.add(new THREE.HemisphereLight(0xffffff,0x8a8f99,0.85));
+const dl=new THREE.DirectionalLight(0xffffff,0.65); dl.position.set(-80,200,120); scene.add(dl);
+const world=new THREE.Group(); world.rotation.x=-Math.PI/2; scene.add(world);   // pattern z -> screen up
+const grid=new THREE.GridHelper(260,26,0x9aa3ad,0x9aa3ad); grid.material.opacity=0.18; grid.material.transparent=true; grid.position.y=-0.01; scene.add(grid);
+
+const PANEL_COL={C:'--sheet',T:'--sheet2',Bm:'--sheet2',LJ:'--jaw',RJ:'--jaw',LU:'--sheet',LL:'--sheet',RU:'--sheet',RL:'--sheet'};
+let meshes={}, lines=[];
+function makeGeometry(){
+  for(const m of Object.values(meshes)){world.remove(m);m.geometry.dispose();}
+  for(const l of lines){world.remove(l);l.geometry.dispose();}
+  meshes={}; lines=[];
+  for(const [k,poly] of Object.entries(PAT.P)){
+    const g=new THREE.BufferGeometry(); const n=poly.length;
+    g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(n*3),3));
+    const idx=[]; for(let i=1;i<n-1;i++) idx.push(0,i,i+1); g.setIndex(idx);
+    const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:new THREE.Color(css(PANEL_COL[k])),side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1}));
+    m.userData.key=k; world.add(m); meshes[k]=m;
+  }
+  // creases & outline
+  const owner = (pt)=>null;
+  for(const [t,p,q] of PAT.creases){
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(6),3));
+    const mat = t==='b' ? new THREE.LineBasicMaterial({color:new THREE.Color(css('--mountain'))})
+                        : new THREE.LineDashedMaterial({color:new THREE.Color(css('--valley')),dashSize:2.2,gapSize:1.4});
+    const l=new THREE.Line(g,mat); l.userData={t,p,q}; world.add(l); lines.push(l);
+  }
+  const og=new THREE.BufferGeometry(); og.setAttribute('position',new THREE.BufferAttribute(new Float32Array(PAT.outline.length*3+3),3));
+  const ol=new THREE.Line(og,new THREE.LineBasicMaterial({color:new THREE.Color(css('--muted'))})); ol.userData={outline:true}; world.add(ol); lines.push(ol);
+}
+// which panel carries each crease (for placing the line in 3D): use the panel on one side
+function creaseOwner(t,p,q){ const {xc,yc}=PAT; const y=p[1], x=p[0];
+  if(t==='b') return y>0?'T':'Bm';
+  if(t==='c') return x<0?'LJ':'RJ';
+  if(t==='d') return y>0?'T':'Bm';
+  return x<0?'LJ':'RJ'; }
+function outlineOwner(pt){ const {xc,yc,xt,yt,L}=PAT; const [x,y]=pt;
+  if(Math.abs(x)>=L-1e-6) return x<0?'LJ':'RJ';
+  return y>0?'T':'Bm'; }
+
+let S=null;
+function update(){
+  S=solve(-rad(curB));
+  for(const [k,m] of Object.entries(meshes)){
+    const a=m.geometry.attributes.position; PAT.P[k].forEach((pt,i)=>{const w=ap(S.X[k],[pt[0],pt[1],0]); a.setXYZ(i,w[0],w[1],w[2]);});
+    a.needsUpdate=true; m.geometry.computeVertexNormals(); m.geometry.computeBoundingSphere();
+  }
+  for(const l of lines){ const a=l.geometry.attributes.position;
+    if(l.userData.outline){ const O=PAT.outline; O.concat([O[0]]).forEach((pt,i)=>{const w=ap(S.X[outlineOwner(pt)],[pt[0],pt[1],0]); a.setXYZ(i,w[0],w[1],w[2]+0.05);}); }
+    else { const {t,p,q}=l.userData; const k=creaseOwner(t,p,q); [p,q].forEach((pt,i)=>{const w=ap(S.X[k],[pt[0],pt[1],0]); a.setXYZ(i,w[0],w[1],w[2]+0.05);}); l.computeLineDistances(); }
+    a.needsUpdate=true; l.geometry.computeBoundingSphere(); }
+  // readouts
+  const f1=v=>v.toFixed(1);
+  const gapTxt = S.gap>=0 ? `${f1(S.gap)} mm` : `overlap ${f1(-S.gap)} mm`;
+  $('oGap').textContent=gapTxt; $('hudGap').textContent=gapTxt;
+  $('oJaw').textContent=`${f1(deg(S.jaw))}°`; $('hudJaw').textContent=`${f1(deg(S.jaw))}°`;
+  $('oPinch').textContent=`${f1(S.pinch)} mm`;
+  $('oB').textContent=`${f1(curB)}°`; $('oC').textContent=`${f1(deg(S.rc))}°`;
+  $('oD').textContent=`${f1(deg(S.rd))}°`; $('oA').textContent=`${f1(deg(S.ra))}°`;
+  const contact = CONTACT!==null && curB>=CONTACT-0.05;
+  $('hudContact').hidden=!contact; $('hudContact').className='chip alert';
+  const d=driver();
+  $('drvOut').textContent = d==='g' ? (S.gap>=0?f1(S.gap):'−'+f1(-S.gap)) : f1(d==='b'?curB:deg(S.rc));
+  $('drvUnit').textContent = d==='g' ? 'mm' : '°';
+  drawChart();
+}
+
+// ---------------- chart
+function drawChart(){
+  const c=$('chart'), dpr=Math.min(2,window.devicePixelRatio||1), W=c.clientWidth, H=c.clientHeight;
+  c.width=W*dpr; c.height=H*dpr; const g=c.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  const m={l:44,r:44,t:12,b:30}, w=W-m.l-m.r, h=H-m.t-m.b;
+  const bEnd=90, rows=TAB.filter(r=>r.b<=bEnd);
+  const gMax=Math.max(...rows.map(r=>r.g)), gMin=Math.min(0,...rows.map(r=>r.g));
+  const X=b=>m.l+w*b/bEnd, Yg=v=>m.t+h*(1-(v-gMin)/(gMax-gMin)), Yc=v=>m.t+h*(1-v/180);
+  g.font='11px Inter, system-ui, sans-serif'; g.strokeStyle=css('--line'); g.fillStyle=css('--muted'); g.lineWidth=1;
+  for(let b=0;b<=90;b+=15){g.beginPath();g.moveTo(X(b),m.t);g.lineTo(X(b),m.t+h);g.stroke();g.textAlign='center';g.fillText(b+'°',X(b),H-12);}
+  const gStep = gMax>120?40:20;
+  for(let v=Math.ceil(gMin/gStep)*gStep; v<=gMax; v+=gStep){g.beginPath();g.moveTo(m.l,Yg(v));g.lineTo(m.l+w,Yg(v));g.stroke();g.textAlign='right';g.fillText(v,m.l-6,Yg(v)+4);}
+  for(let v=0;v<=180;v+=45){g.textAlign='left';g.fillText(v+'°',m.l+w+6,Yc(v)+4);}
+  g.textAlign='center'; g.fillText('center fold angle |ρb|',m.l+w/2,H-1);
+  // zero line
+  g.strokeStyle=css('--muted'); g.setLineDash([3,3]); g.beginPath(); g.moveTo(m.l,Yg(0)); g.lineTo(m.l+w,Yg(0)); g.stroke(); g.setLineDash([]);
+  // curves
+  const curve=(fy,col,lw)=>{g.strokeStyle=col;g.lineWidth=lw;g.beginPath();rows.forEach((r,i)=>{const x=X(r.b),y=fy(r);i?g.lineTo(x,y):g.moveTo(x,y);});g.stroke();};
+  // ghost curves: tip gap for other d–b angles (same other dimensions)
+  const thNow=deg(PAT.thetaD), lo=thetaRange(G)[0];
+  g.font='10px Inter, system-ui, sans-serif';
+  for(const th of [40,50,60,70,80]){ if(th<lo || Math.abs(th-thNow)<2) continue;
+    const pts=gapCurve(rad(th)); g.strokeStyle=css('--muted'); g.globalAlpha=0.45; g.lineWidth=1; g.beginPath();
+    let last=null; pts.forEach(([b,v],i)=>{const y=Math.max(m.t,Math.min(m.t+h,Yg(v))); i?g.lineTo(X(b),y):g.moveTo(X(b),y); last=[X(b),y];}); g.stroke();
+    // label at the point where the curve crosses zero, else at its end
+    const z=pts.find(p=>p[1]<=0); const lp = z ? [X(z[0]),Yg(0)] : last; g.globalAlpha=0.8; g.fillStyle=css('--muted'); g.textAlign='left'; g.fillText(th+'°', lp[0]+3, lp[1]-4); g.globalAlpha=1; }
+  g.font='11px Inter, system-ui, sans-serif';
+  curve(r=>Yc(r.c),css('--valley'),1.6);
+  curve(r=>Yg(r.g),css('--accent'),2.4);
+  if(CONTACT!==null && CONTACT<=90){g.fillStyle=css('--mountain');g.beginPath();g.arc(X(CONTACT),Yg(0),4,0,7);g.fill();}
+  // current
+  if(curB<=90){ const s=TAB[Math.round(curB*4)]; g.strokeStyle=css('--ink'); g.lineWidth=1; g.beginPath(); g.moveTo(X(curB),m.t); g.lineTo(X(curB),m.t+h); g.stroke();
+    g.fillStyle=css('--accent'); g.beginPath(); g.arc(X(curB),Yg(S.gap),4.5,0,7); g.fill(); }
+  // legend
+  g.textAlign='left'; g.fillStyle=css('--accent'); g.fillRect(m.l+8,m.t+6,14,3); g.fillStyle=css('--ink'); g.fillText('tip gap [mm] (left axis)',m.l+28,m.t+10);
+  g.fillStyle=css('--valley'); g.fillRect(m.l+8,m.t+22,14,3); g.fillStyle=css('--ink'); g.fillText('fold angle c [°] (right axis)',m.l+28,m.t+26);
+  const note = CONTACT!==null ? `The jaw tips touch when b is folded ${CONTACT.toFixed(1)}° (c = ${TAB[Math.round(CONTACT*4)].c.toFixed(1)}°). c reaches its maximum of ${TAB[360].c.toFixed(1)}° at b = 90°.`
+                               : `With these dimensions c only reaches ${TAB[360].c.toFixed(1)}°, so the jaws never fully close. Try a steeper diagonal d (narrower flap end) or a narrower center.`;
+  $('chartNote').textContent=note;
+}
+
+// ---------------- crease pattern view
+function drawCP(){
+  const c=$('cp'), dpr=Math.min(2,window.devicePixelRatio||1), W=Math.max(10,c.clientWidth), H=Math.max(10,c.clientHeight);
+  c.width=W*dpr; c.height=H*dpr; const g=c.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  const {L,yt}=PAT; const s=Math.min((W-30)/(2*L),(H-30)/(2*yt)); const T=(p)=>[W/2+p[0]*s, H/2-p[1]*s];
+  g.fillStyle=css('--sheet'); g.strokeStyle=css('--muted'); g.lineWidth=1.5; g.beginPath(); PAT.outline.forEach((p,i)=>{const q=T(p); i?g.lineTo(...q):g.moveTo(...q);}); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle=css('--jaw'); for(const k of ['LJ','RJ']){g.beginPath();PAT.P[k].forEach((p,i)=>{const q=T(p);i?g.lineTo(...q):g.moveTo(...q);});g.closePath();g.fill();}
+  g.lineWidth=2.2;
+  for(const [t,p,q] of PAT.creases){ g.strokeStyle= t==='b'?css('--mountain'):css('--valley'); g.setLineDash(t==='b'?[]:[6,4]);
+    g.beginPath(); g.moveTo(...T(p)); g.lineTo(...T(q)); g.stroke();
+    const mid=T([(p[0]+q[0])/2,(p[1]+q[1])/2]); g.setLineDash([]); g.fillStyle=g.strokeStyle; g.font='600 15px "Space Grotesk", system-ui, sans-serif'; g.fillText(t, mid[0]+5, mid[1]-5); }
+  g.setLineDash([]); g.fillStyle=css('--muted'); g.font='12px Inter, system-ui, sans-serif';
+  g.fillText(`θd = ${deg(PAT.thetaD).toFixed(1)}°`, 10, H-10);
+  g.fillText('jaw', T([-PAT.L*0.75,0])[0]-24, T([0,0])[1]+4); g.fillText('jaw', T([PAT.L*0.75,0])[0]-24, T([0,0])[1]+4);
+}
+
+// ---------------- wiring
+function thetaRange(g){ const xc=g.W/2, yc=g.H/2, yt=g.Y/2; return [deg(Math.atan2(yt-yc, xc-0.5)), 88]; }
+function syncGeoInputs(){ $('gW').value=G.W.toFixed(1); $('gH').value=G.H.toFixed(1); $('gT').value=G.T.toFixed(1); $('gY').value=G.Y.toFixed(1); $('gL').value=G.L.toFixed(1);
+  const [lo,hi]=thetaRange(G); const th=deg(Math.atan2((G.Y-G.H)/2,(G.W-G.T)/2));
+  $('gA').min=Math.ceil(lo*2)/2; $('gA').max=hi; $('gA').value=th.toFixed(1); $('gAOut').textContent=th.toFixed(1)+'°'; }
+$('gA').addEventListener('input',()=>{ const th=rad(+$('gA').value); const xc=G.W/2, yc=G.H/2, yt=G.Y/2;
+  const xt=Math.max(0.25, xc-(yt-yc)/Math.tan(th)); $('gT').value=(2*xt).toFixed(2); applyGeo(); $('gAOut').textContent=(+$('gA').value).toFixed(1)+'°'; });
+// closed-form tip gap for ghost curves
+function gapCurve(theta){ const xc=G.W/2, L=G.L/2, k=Math.tan(theta); const pts=[];
+  for(let b=0;b<=90;b+=1){ const rc=2*Math.atan(k*Math.sin(rad(b))); pts.push([b, 2*(xc+(L-xc)*Math.cos(rc))]); } return pts; }
+function applyGeo(){
+  const n={W:+$('gW').value,H:+$('gH').value,T:+$('gT').value,Y:+$('gY').value,L:+$('gL').value};
+  let msg='';
+  if(!(n.T < n.W)) msg='Flap end width must be smaller than the center width.';
+  else if(!(n.Y > n.H)) msg='Flap end height must be larger than the center height.';
+  else if(!(n.L > n.W)) msg='Overall length must be longer than the center width.';
+  $('geoMsg').textContent=msg; if(msg) return;
+  G=n; PAT=pattern(); buildTable(); makeGeometry();
+  { const th=deg(PAT.thetaD), [lo,hi]=thetaRange(G); $('gA').min=Math.ceil(lo*2)/2; $('gA').max=hi; if(document.activeElement!==$('gA')) $('gA').value=th.toFixed(1); $('gAOut').textContent=th.toFixed(1)+'°'; } curB=Math.min(curB,bMax()); drvEl.value=Math.round(bToSlider(curB)*1000); drawCP(); update();
+}
+['gW','gH','gT','gY','gL'].forEach(id=>$(id).addEventListener('change',applyGeo));
+$('reset').addEventListener('click',()=>{G={...ORIG}; syncGeoInputs(); applyGeo();});
+drvEl.addEventListener('input',()=>{ curB=sliderToB(drvEl.value/1000); stopPlay(); update(); });
+document.querySelectorAll('input[name=drv]').forEach(r=>r.addEventListener('change',()=>{ curB=Math.min(curB, driver()==='b'?bMax():Math.min(bMax(),90)); drvEl.value=Math.round(bToSlider(curB)*1000); update(); }));
+$('stopAtContact').addEventListener('change',()=>{ curB=Math.min(curB,bMax()); drvEl.value=Math.round(bToSlider(curB)*1000); update(); });
+let playing=false, t0=0, raf=0;
+function stopPlay(){ playing=false; $('play').textContent='▶ Fold / unfold'; }
+$('play').addEventListener('click',()=>{ if(playing){stopPlay();return;} playing=true; t0=performance.now(); $('play').textContent='■ Stop'; });
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function resize(){ const r=canvas.parentElement.getBoundingClientRect(); renderer.setSize(r.width,r.height,false); camera.aspect=r.width/r.height; camera.updateProjectionMatrix(); }
+const ro=new ResizeObserver(()=>{resize(); drawChart(); drawCP();}); ro.observe(canvas.parentElement); ro.observe(document.querySelector('.below'));
+function loop(now){
+  if(playing){ const per=reduce?8000:4200; const ph=((now-t0)%per)/per; const v=0.5-0.5*Math.cos(2*Math.PI*ph);
+    curB = (driver()==='b'?bMax():Math.min(bMax(),90))*v; drvEl.value=Math.round(bToSlider(curB)*1000); update(); }
+  controls.update(); renderer.render(scene,camera); raf=requestAnimationFrame(loop);
+}
+// theme changes -> recolor
+const mq=window.matchMedia('(prefers-color-scheme: dark)'); const recolor=()=>{makeGeometry(); drawCP(); update();};
+mq.addEventListener?.('change',recolor); new MutationObserver(recolor).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+syncGeoInputs(); buildTable(); makeGeometry(); drawCP(); resize();
+curB = CONTACT ? CONTACT*0.55 : 25; drvEl.value=Math.round(bToSlider(curB)*1000); update();
+requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>

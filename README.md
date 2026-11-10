@@ -20,6 +20,8 @@ rigid-foldable origami, degree-4 vertices and compliant mechanisms before they p
 1. Download `oriceps-fold-sim-en.html`.
 2. Open it in any modern browser (Chrome, Edge, Firefox or Safari). No server or install is needed.
 
+3. OR just go to this link: [simulation](https://wowlabresearch.github.io/origami-gripper/oriceps-fold-sim-en.html)
+
 An internet connection is required on first load, because the page loads
 [three.js r128](https://threejs.org/) and Google Fonts from public CDNs.
 
